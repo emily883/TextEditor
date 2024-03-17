@@ -1,4 +1,6 @@
-#include <errno.h>
+/*** includes ***/
+
+#include <errno.h> // Te permite usar la variable errno para almacenar codigos de error y tmbn acceder a funciones para manejar y diagnosticar errores durante la ejecucion de un programa
 #include <stdlib.h> // para atexits
 #include <termios.h> // funciones y mas para controlar el terminal.
 #include <unistd.h> // funciones de manejo descriptores de archivos
@@ -6,7 +8,12 @@
 #include <stdio.h> // para entrada y salida estandar uwu
 
 
+/*** data ***/
+
 struct termios orig_termios; // Definir una estructura termios
+
+
+/*** terminal ***/
 
 void die(const char *s) {
   perror(s); // nomas imprime el error :v
@@ -41,6 +48,9 @@ void enableRawMode() {
 // el TCSAFLUSH asegura q el buffer de entrada y salida se limpien antes de aplicar los cambios en la configuracion del terminal :)
   if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr"); // Si el aplicar la config no jala, tira errorsito mi amolll
 }
+
+
+/*** init ***/
 
 int main() {
   enableRawMode();
