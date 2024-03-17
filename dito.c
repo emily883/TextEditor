@@ -23,6 +23,12 @@ void enableRawMode() {
 int main() {
   enableRawMode();
   char c;
-  while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q');
+  while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q'){
+    if(iscntrl(c)){ // el iscntrl verifica si la entrada es un caracter de control, osea un caracter sin representacion visal :v, si lo es pues retorna true
+      printf("%d\n", c);
+    }else{
+      printf("%d ('%c')\n", c, c); // %d da referencia al primer c solito que imprime el valor numerico del caracter, y el ('%c') hace referencia al segundo c que imprimirá el c deporsé :)
+    }
+  }
   return 0;
 }
