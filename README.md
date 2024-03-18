@@ -1,2 +1,2 @@
 # TextEditor
-Console basic text editor
+Console basic text editor learning based
