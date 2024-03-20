@@ -6,31 +6,46 @@
 #include <unistd.h> // funciones de manejo descriptores de archivos
 #include <ctype.h> // pa saber q caracter es, si es numero o es letra mayuscula o minuscula y tmbn convierte mayus a minus y cositas asi :v
 #include <stdio.h> // para entrada y salida estandar uwu
+#include <sys/ioctl.h>
+
+
+/*** defines ***/
+
+#define CTRL_KEY(k) ((k) & 0x1f)
 
 
 /*** data ***/
 
-struct termios orig_termios; // Definir una estructura termios
+struct editorConfig {
+  int screenrows;
+  int screencols;
+  struct termios orig_termios; // Definir una estructura termios
+};
+
+struct editorConfig E;
 
 
 /*** terminal ***/
 
 void die(const char *s) {
+  write(STDOUT_FILENO, "\x1b[2J", 4);
+  write(STDOUT_FILENO, "\x1b[H", 3);
+
   perror(s); // nomas imprime el error :v
   exit(1);
 }
 
 void disableRawMode() { // Esta funcion restaura la configuracion original del terminal :)
    // tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); restaura la config inicial que está dentro de orig_termios
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
       die("tcsetattr");
 }
 
 void enableRawMode() {
   // tcgetattr(STDIN_FILENO, &orig_termios); // obtiene la config actual del terminal y lo guarda en orig_termios. tcgetattr() obtienes los atributos del terminal
-  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
+  if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1) die("tcgetattr");
   atexit(disableRawMode); // registra la funcion disableRawMode para que la llame al final del programa sin importar que
-  struct termios raw = orig_termios; // Crea una copia de la config original obvi, para asi poder modificar la copia sin dañar el original :)
+  struct termios raw = E.orig_termios; // Crea una copia de la config original obvi, para asi poder modificar la copia sin dañar el original :)
   raw.c_iflag &= ~(BRKINT | ICRNL | IGNBRK | INPCK | ISTRIP | IXON);
 // BRKINT: Controla si se genera una señal de interrupción cuando se recibe una señal de ruptura.
 // ICRNL: Controla si los retornos de carro ('\r') se convierten automáticamente en saltos de línea ('\n').
@@ -50,19 +65,82 @@ void enableRawMode() {
 }
 
 
+
+
+/*** Terminal ***/
+
+char editorReadKey() {
+  int nread;
+  char c;
+  while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+    if (nread == -1 && errno != EAGAIN) die("read");
+  }
+  return c;
+}
+
+
+int getWindowSize(int *rows, int *cols) {
+  struct winsize ws;
+
+  if (1 || ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+    if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) return -1;
+    editorReadKey();
+    return -1;
+  } else {
+    *cols = ws.ws_col;
+    *rows = ws.ws_row;
+    return 0;
+  }
+}
+
+/*** output ***/
+
+
+void editorDrawRows() {
+  int y;
+  for (y = 0; y < E.screenrows; y++) {
+    write(STDOUT_FILENO, "~\r\n", 3);
+  }
+}
+
+void editorRefreshScreen() {
+  write(STDOUT_FILENO, "\x1b[2J", 4); // escribir 4 bits, el \x1b es el caracter de escape es un byte, [2J el resto de bytes
+  write(STDOUT_FILENO, "\x1b[H", 3); // pone el cursor de texto al inicio, el comando [ H acepta dos parametros
+
+  editorDrawRows();
+
+  write(STDOUT_FILENO, "\x1b[H", 3);
+
+}
+
+/*** input ***/
+
+void editorProcessKeypress() {
+  char c = editorReadKey();
+  switch (c) {
+    case CTRL_KEY('q'):
+      write(STDOUT_FILENO, "\x1b[2J", 4);
+      write(STDOUT_FILENO, "\x1b[H", 3);
+      exit(0);
+      break;
+  }
+}
+
+
 /*** init ***/
+
+void initEditor() {
+  if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
+}
 
 int main() {
   enableRawMode();
+  initEditor();
+
   while (1){
-    char c = '\0';
-    if(read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) die("read");
-    if(iscntrl(c)){ // el iscntrl verifica si la entrada es un caracter de control, osea un caracter sin representacion visal :v, si lo es pues retorna true
-      printf("%d\r\n", c);
-    }else{
-      printf("%d ('%c')\r\n", c, c); // %d da referencia al primer c solito que imprime el valor numerico del caracter, y el ('%c') hace referencia al segundo c que imprimirá el c deporsé :)
-    }
-    if(c == 'q') break;
+    editorRefreshScreen();
+    editorProcessKeypress();
   }
+
   return 0;
 }
